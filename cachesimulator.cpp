@@ -14,8 +14,6 @@ s = log2(#sets)   b = log2(block size)  t=32-s-b
 #include <cmath>
 #include <bitset>
 
-int ccc = 1;
-
 using namespace std;
 //access state:
 #define NA 0 // no action
@@ -75,18 +73,13 @@ public:
             for (int i = 0; i < this->set_size; i++)
                 this->cache.push_back(new Set(associativity));
         }
-        // cout << "Set size: " << this->set_size << endl;
-        // cout << "Tag size: " << this->tag_size << endl;
-        // cout << "Index size: " << this->index_size << endl;
-        // cout << "Offset size: " << this->offset_size << endl;
-        // cout << "========" << endl;
     }
 
     /*
-        return: (1) nullptr, if read hits
-                (2) same address pointer, if not evicit
-                (3) replaced address pointer, if evict
-    */
+     *  return: (1) nullptr, if read hits
+     *          (2) same address pointer, if not evicit
+     *          (3) replaced address pointer, if evict
+     */
     bitset<32> *read_hit(bitset<32> accessaddr)
     {
         unsigned int tag = mapping_tag(accessaddr);
@@ -94,8 +87,8 @@ public:
         bitset<32> *result;
 
         if (find_block(tag, set_num) == -1)
-            result = allocate(accessaddr);   // Read miss, should allocate it
-        else result = nullptr;                 // nullptr if read hits. Do not need to throw anything
+            result = allocate(accessaddr);  // Read miss, should allocate it
+        else result = nullptr;              // nullptr if read hits. Do not need to throw anything
 
         return result;
     }
@@ -123,7 +116,8 @@ public:
         if (!set->v_valid[set->count]) {
             set->v_valid[set->count] = true;
             result = new bitset<32> (tag << this->index_size | set_num);
-        } else
+        }
+        else
             result = new bitset<32> (set->v_tag[set->count] << this->index_size | set_num);
 
         // Update tag and count
@@ -135,7 +129,7 @@ public:
 
         return result;
     }
-// private:
+private:
     vector<Set*> cache;
     int block_size, associativity, cache_size;
     int set_size, tag_size, index_size, offset_size;
