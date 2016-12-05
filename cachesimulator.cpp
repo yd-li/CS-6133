@@ -73,10 +73,15 @@ public:
             for (int i = 0; i < this->set_size; i++)
                 this->cache.push_back(new Set(associativity));
         }
+        // cout << "Set size: " << this->set_size << endl;
+        // cout << "Tag size: " << this->tag_size << endl;
+        // cout << "Index size: " << this->index_size << endl;
+        // cout << "Offset size: " << this->offset_size << endl;
+        // cout << "========" << endl;
     }
 
-    /*
-     *  return: (1) nullptr, if read hits
+    /**
+     *  return: (1) NULL, if read hits
      *          (2) same address pointer, if not evicit
      *          (3) replaced address pointer, if evict
      */
@@ -88,7 +93,7 @@ public:
 
         if (find_block(tag, set_num) == -1)
             result = allocate(accessaddr);  // Read miss, should allocate it
-        else result = nullptr;              // nullptr if read hits. Do not need to throw anything
+        else result = NULL;              // NULL if read hits. Do not need to throw anything
 
         return result;
     }
@@ -115,10 +120,10 @@ public:
         // Wether this is an empty block or need to evict data
         if (!set->v_valid[set->count]) {
             set->v_valid[set->count] = true;
-            result = new bitset<32> (tag << this->index_size | set_num);
+            result = new bitset<32> (tag << this->index_size | set_num << this->offset_size);
         }
         else
-            result = new bitset<32> (set->v_tag[set->count] << this->index_size | set_num);
+            result = new bitset<32> (set->v_tag[set->count] << this->index_size | set_num << this->offset_size);
 
         // Update tag and count
         set->v_tag[set->count] = tag;
@@ -129,21 +134,21 @@ public:
 
         return result;
     }
-private:
+// private:
     vector<Set*> cache;
     int block_size, associativity, cache_size;
     int set_size, tag_size, index_size, offset_size;
 
     unsigned int mapping_tag(bitset<32> accessaddr)
     {
-        string tag_string = accessaddr.to_string().substr(0, this->tag_size);
-        return stoi(tag_string, nullptr, 2);
+        bitset<32> tag (accessaddr.to_string().substr(0, this->tag_size));
+        return (unsigned int) tag.to_ulong();
     }
 
     unsigned int mapping_set_num(bitset<32> accessaddr)
     {
-        string set_num_string = accessaddr.to_string().substr(this->tag_size, this->index_size - this->offset_size);
-        return stoi(set_num_string, nullptr, 2);
+        bitset<32> set_num (accessaddr.to_string().substr(this->tag_size, this->index_size - this->offset_size));
+        return (unsigned int) set_num.to_ulong();
     }
 
     int find_block(unsigned int tag, unsigned int set_num)
@@ -199,7 +204,6 @@ int main(int argc, char* argv[])
 
     if (traces.is_open() && tracesout.is_open()) {
         while (getline (traces,line)) {   // read mem access file and access Cache
-
             istringstream iss(line);
             if (!(iss >> accesstype >> xaddr)) { break; }
             stringstream saddr(xaddr);
@@ -213,7 +217,7 @@ int main(int argc, char* argv[])
                 // and then L2 (if required),
                 // update the L1 and L2 access state variable;
                 bitset<32> *L1_evicted = L1->read_hit(accessaddr);
-                if (L1_evicted == nullptr) {
+                if (L1_evicted == NULL) {
                     // L1 Read Hit, so nothing to do with L2
                     L1AcceState = RH;
                     L2AcceState = NA;
@@ -222,17 +226,21 @@ int main(int argc, char* argv[])
                     L1AcceState = RM;
 
                     bitset<32> *L2_evicted = L2->read_hit(accessaddr);
-                    L2AcceState = L2_evicted == nullptr ? RH : RM;
+                    L2AcceState = L2_evicted == NULL ? RH : RM;
 
                     // If L1 evicted data, should write in L2
-                    if (*L1_evicted != accessaddr)
-                        L2->allocate(*L1_evicted);
+                    if (*L1_evicted != accessaddr) {
+                        bitset<32> *temp = L2->allocate(*L1_evicted);
 
-                    if (L2_evicted != nullptr)
+                        if (temp != NULL)
+                            delete temp;
+                    }
+
+                    if (L2_evicted != NULL)
                         delete L2_evicted;
                 }
 
-                if (L1_evicted != nullptr)
+                if (L1_evicted != NULL)
                     delete L1_evicted;
             } else {
                 // Implement by you:
