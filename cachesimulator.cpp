@@ -65,64 +65,41 @@ public:
             this->set_size = 1;
             this->index_size = 0;
             this->tag_size = 32;
-
             this->cache.push_back(new Set(cache_size * 1024 / block_size));
         } else {
             this->set_size = (cache_size * 1024) / (block_size * associativity);
             this->index_size = (int) log2(this->set_size) + this->offset_size;
             this->tag_size = 32 - this->index_size;
-
             for (int i = 0; i < this->set_size; i++)
                 this->cache.push_back(new Set(associativity));
         }
     }
 
     int read_hit(bitset<32> accessaddr) {
-        unsigned int tag = mapping_tag(accessaddr);
-        unsigned int set_num = mapping_set_num(accessaddr);
-
-        return find_block(tag, set_num) == -1 ? RM : RH;
+        return find_block(accessaddr) == -1 ? RM : RH;
     }
 
     int write_hit(bitset<32> accessaddr)
     {
-        unsigned int tag = mapping_tag(accessaddr);
-        unsigned int set_num = mapping_set_num(accessaddr);
-
-        return find_block(tag, set_num) == -1 ? WM : WH;
+        return find_block(accessaddr) == -1 ? WM : WH;
     }
 
-    bitset<32> *allocate(bitset<32> accessaddr)
+    // allocate an data into cache
+    void allocate(bitset<32> accessaddr)
     {
         unsigned int tag = mapping_tag(accessaddr);
         unsigned int set_num = mapping_set_num(accessaddr);
-        return allocate(tag, set_num);
-    }
 
-    /**
-     * return:  (1) same address pointer, if no evicte
-     *          (2) replaced address pointer, if evicted
-     */
-    bitset<32> *allocate(unsigned int tag, unsigned int set_num)
-    {
         Set *set = this->cache[set_num];
-        bitset<32> *result;
         // Wether this is an empty block or need to evict data
-        if (!set->v_valid[set->count]) {
+        if (!set->v_valid[set->count])
             set->v_valid[set->count] = true;
-            result = new bitset<32> (tag << this->index_size | set_num << this->offset_size);
-        }
-        else
-            result = new bitset<32> (set->v_tag[set->count] << this->index_size | set_num << this->offset_size);
-
         // Update tag and count
         set->v_tag[set->count] = tag;
         if (this->associativity != 0)
             set->count = (set->count + 1) % this->associativity;
         else
             set->count = (set->count + 1) % (this->cache_size * 1024 / this->block_size);
-
-        return result;
     }
 private:
     vector<Set*> cache;
@@ -141,8 +118,11 @@ private:
         return (unsigned int) set_num.to_ulong();
     }
 
-    int find_block(unsigned int tag, unsigned int set_num)
+    int find_block(bitset<32> accessaddr)
     {
+        unsigned int tag = mapping_tag(accessaddr);
+        unsigned int set_num = mapping_set_num(accessaddr);
+
         for (int i = 0; i < this->associativity; i++)
             if (cache[set_num]->v_valid[i] && cache[set_num]->v_tag[i] == tag)
                 return i;
@@ -175,8 +155,8 @@ int main(int argc, char* argv[])
     Cache *L1 = new Cache(cacheconfig.L1blocksize, cacheconfig.L1setsize, cacheconfig.L1size);
     Cache *L2 = new Cache(cacheconfig.L2blocksize, cacheconfig.L2setsize, cacheconfig.L2size);
 
-    int L1AcceState =0; // L1 access state variable, can be one of NA, RH, RM, WH, WM;
-    int L2AcceState =0; // L2 access state variable, can be one of NA, RH, RM, WH, WM;
+    int L1AcceState = 0; // L1 access state variable, can be one of NA, RH, RM, WH, WM;
+    int L2AcceState = 0; // L2 access state variable, can be one of NA, RH, RM, WH, WM;
 
     ifstream traces;
     ofstream tracesout;
@@ -199,7 +179,6 @@ int main(int argc, char* argv[])
             stringstream saddr(xaddr);
             saddr >> std::hex >> addr;
             accessaddr = bitset<32> (addr);
-
             // access the L1 and L2 Cache according to the trace;
             if (accesstype.compare("R") == 0) {
                 // Implement by you:
@@ -209,13 +188,11 @@ int main(int argc, char* argv[])
                 L1AcceState = L1->read_hit(accessaddr);
                 L2AcceState = L1AcceState == RH ? NA : L2->read_hit(accessaddr);
 
-                if (L2AcceState == RM) {
-                    bitset<32> *L2_evicted = L2->allocate(accessaddr);
-                    if (L2_evicted != NULL) delete L2_evicted;
-                }
+                if (L2AcceState == RM) // If L2 miss, should allocate data to L2
+                    L2->allocate(accessaddr);
 
-                if (L1AcceState == RM)
-                    bitset<32> *L1_evicted = L1->allocate(accessaddr);
+                if (L1AcceState == RM) // If l1 miss, should allocate data to L1
+                    L1->allocate(accessaddr);
             } else {
                 // Implement by you:
                 // write access to the L1 Cache,
