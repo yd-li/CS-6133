@@ -1,4 +1,6 @@
 /*
+Author: Zhiwen Guan (zg540)
+        Yuanda Li (yl3638)
 Cache Simulator
 Level one L1 and level two L2 cache parameters are read from file (block size, line per set and set per cache).
 The 32 bit address is divided into tag bits (t), set index bits (s) and block offset bits (b)
@@ -73,29 +75,13 @@ public:
             for (int i = 0; i < this->set_size; i++)
                 this->cache.push_back(new Set(associativity));
         }
-        // cout << "Set size: " << this->set_size << endl;
-        // cout << "Tag size: " << this->tag_size << endl;
-        // cout << "Index size: " << this->index_size << endl;
-        // cout << "Offset size: " << this->offset_size << endl;
-        // cout << "========" << endl;
     }
 
-    /**
-     *  return: (1) NULL, if read hits
-     *          (2) same address pointer, if not evicit
-     *          (3) replaced address pointer, if evict
-     */
-    bitset<32> *read_hit(bitset<32> accessaddr)
-    {
+    int read_hit(bitset<32> accessaddr) {
         unsigned int tag = mapping_tag(accessaddr);
         unsigned int set_num = mapping_set_num(accessaddr);
-        bitset<32> *result;
 
-        if (find_block(tag, set_num) == -1)
-            result = allocate(accessaddr);  // Read miss, should allocate it
-        else result = NULL;              // NULL if read hits. Do not need to throw anything
-
-        return result;
+        return find_block(tag, set_num) == -1 ? RM : RH;
     }
 
     int write_hit(bitset<32> accessaddr)
@@ -113,6 +99,10 @@ public:
         return allocate(tag, set_num);
     }
 
+    /**
+     * return:  (1) same address pointer, if no evicte
+     *          (2) replaced address pointer, if evicted
+     */
     bitset<32> *allocate(unsigned int tag, unsigned int set_num)
     {
         Set *set = this->cache[set_num];
@@ -134,7 +124,7 @@ public:
 
         return result;
     }
-// private:
+private:
     vector<Set*> cache;
     int block_size, associativity, cache_size;
     int set_size, tag_size, index_size, offset_size;
@@ -216,32 +206,16 @@ int main(int argc, char* argv[])
                 // read access to the L1 Cache,
                 // and then L2 (if required),
                 // update the L1 and L2 access state variable;
-                bitset<32> *L1_evicted = L1->read_hit(accessaddr);
-                if (L1_evicted == NULL) {
-                    // L1 Read Hit, so nothing to do with L2
-                    L1AcceState = RH;
-                    L2AcceState = NA;
-                } else {
-                    // L1 read miss, should search in L2
-                    L1AcceState = RM;
+                L1AcceState = L1->read_hit(accessaddr);
+                L2AcceState = L1AcceState == RH ? NA : L2->read_hit(accessaddr);
 
-                    bitset<32> *L2_evicted = L2->read_hit(accessaddr);
-                    L2AcceState = L2_evicted == NULL ? RH : RM;
-
-                    // If L1 evicted data, should write in L2
-                    if (*L1_evicted != accessaddr) {
-                        bitset<32> *temp = L2->allocate(*L1_evicted);
-
-                        if (temp != NULL)
-                            delete temp;
-                    }
-
-                    if (L2_evicted != NULL)
-                        delete L2_evicted;
+                if (L2AcceState == RM) {
+                    bitset<32> *L2_evicted = L2->allocate(accessaddr);
+                    if (L2_evicted != NULL) delete L2_evicted;
                 }
 
-                if (L1_evicted != NULL)
-                    delete L1_evicted;
+                if (L1AcceState == RM)
+                    bitset<32> *L1_evicted = L1->allocate(accessaddr);
             } else {
                 // Implement by you:
                 // write access to the L1 Cache,
