@@ -12,10 +12,10 @@ using namespace std;
 
 int state_change[4][2] = {
 /*          0: NT   1: T       */
-/* 00 */{   0,      1},
-/* 01 */{   0,      3},
-/* 10 */{   0,      3},
-/* 11 */{   2,      3}
+/* 00 */ {  0,      1},
+/* 01 */ {  0,      3},
+/* 10 */ {  0,      3},
+/* 11 */ {  2,      3}
 };
 
 int main(int argc, char* argv[])
@@ -38,6 +38,8 @@ int main(int argc, char* argv[])
 
     string line, hex_addr;
     unsigned int actual_bit, addr;
+    int count = 0, error_count = 0;
+
     if (traces.is_open() && tracesout.is_open()) {
         while (getline(traces, line)) {
             istringstream iss(line);
@@ -47,16 +49,27 @@ int main(int argc, char* argv[])
 
             unsigned int index = addr & mask;
             int predicted = saturating_counter[index];
-            // 1. Output predicted value to file
-            tracesout << (predicted >= 2 ? "1" : "0") << endl;
-            // 2. Update saturating counter
+            int predicted_bit = (predicted >= 2 ? 1 : 0);
+
+            /* Output predicted value to file */
+            tracesout << predicted_bit << endl;
+
+            /* Update saturating counter */
             saturating_counter[index] = state_change[predicted][actual_bit];
+
+            /* Optional: Update miss-prediction counter */
+            count++;
+            error_count += (predicted_bit == actual_bit ? 0 : 1);
         }
         traces.close();
         tracesout.close();
     }
     else
         cout<< "Unable to open trace or traceout file";
+
+    /* If miss-prediction rate is required, uncomment the following two lines */
+    // cout << "m = " << m << endl;
+    // cout << error_count << " / " << count << " = " << ((double)error_count / count) << endl;
 
     return 0;
 }
