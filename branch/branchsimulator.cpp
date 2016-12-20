@@ -10,6 +10,9 @@
 
 using namespace std;
 
+/* If miss-prediction rate is required, set OUTPUT_MIS_PREDICTION true */
+const bool OUTPUT_MIS_PREDICTION = false;
+
 int state_change[4][2] = {
 /*          0: NT   1: T       */
 /* 00 */ {  0,      1},
@@ -27,8 +30,8 @@ int main(int argc, char* argv[])
         params >> m;
     params.close();
 
-    // Init variables
-    unsigned int mask = ~(~0 << m); // Used to get the last m bits of an address by & operation
+    /* Init variables */
+    unsigned int mask = ~(~0 << m); // Get the last m bits of an address by & operation
     vector<int> saturating_counter(pow(2, m), 3);
 
     ofstream tracesout;
@@ -42,6 +45,7 @@ int main(int argc, char* argv[])
 
     if (traces.is_open() && tracesout.is_open()) {
         while (getline(traces, line)) {
+            /* read address and actual value in each line */
             istringstream iss(line);
             if (!(iss >> hex_addr >> actual_bit)) break;
             stringstream saddr(hex_addr);
@@ -50,13 +54,10 @@ int main(int argc, char* argv[])
             unsigned int index = addr & mask;
             int predicted = saturating_counter[index];
             int predicted_bit = (predicted >= 2 ? 1 : 0);
-
             /* Output predicted value to file */
             tracesout << predicted_bit << endl;
-
             /* Update saturating counter */
             saturating_counter[index] = state_change[predicted][actual_bit];
-
             /* Optional: Update miss-prediction counter */
             count++;
             error_count += (predicted_bit == actual_bit ? 0 : 1);
@@ -67,9 +68,10 @@ int main(int argc, char* argv[])
     else
         cout<< "Unable to open trace or traceout file";
 
-    /* If miss-prediction rate is required, uncomment the following two lines */
-    // cout << "m = " << m << endl;
-    // cout << error_count << " / " << count << " = " << ((double)error_count / count) << endl;
+    if (OUTPUT_MIS_PREDICTION) { // Print missing rate if required
+        cout << "m = " << m << endl;
+        cout << error_count << " / " << count << " = " << ((double)error_count / count) << endl;
+    }
 
     return 0;
 }
